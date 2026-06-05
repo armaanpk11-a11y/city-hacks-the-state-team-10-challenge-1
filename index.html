@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>100 Trinity Place — Work Order Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@12.1.2/highcharts.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highcharts@12.1.2/modules/accessibility.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+:root {
+  --bg: #0f1117;
+  --bg-card: #1a1d27;
+  --bg-hover: #22263a;
+  --border: #2a2e3f;
+  --text: #e4e7ec;
+  --text-secondary: #9ba3b5;
+  --text-muted: #6b7280;
+  --accent: #6366f1;
+  --accent-glow: rgba(99,102,241,0.15);
+  --critical: #ef4444;
+  --critical-bg: rgba(239,68,68,0.12);
+  --high: #f59e0b;
+  --high-bg: rgba(245,158,11,0.12);
+  --medium: #3b82f6;
+  --medium-bg: rgba(59,130,246,0.12);
+  --low: #10b981;
+  --low-bg: rgba(16,185,129,0.12);
+  --success: #10b981;
+  --radius: 12px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+  --mono: 'SF Mono', 'JetBrains Mono', Consolas, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); padding: 24px; line-height: 1.5; min-height: 100vh; }
+
+/* Header */
+.header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+.header h1 { font-size: 22px; font-weight: 700; }
+.api-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.api-badge.connected { background: var(--low-bg); color: var(--success); }
+.api-badge.disconnected { background: var(--critical-bg); color: var(--critical); }
+.api-badge::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+.subtitle { color: var(--text-secondary); font-size: 13px; width: 100%; }
+
+/* KPI Row */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.kpi { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+.kpi .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 4px; }
+.kpi .value { font-size: 28px; font-weight: 700; font-family: var(--mono); }
+.kpi .sub { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+.kpi.critical .value { color: var(--critical); }
+.kpi.high .value { color: var(--high); }
+.kpi.medium .value { color: var(--medium); }
+.kpi.success .value { color: var(--success); }
+
+/* Cards */
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; margin-bottom: 18px; }
+.card h2 { font-size: 14px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.card h2 i { color: var(--accent); font-size: 14px; }
+
+/* Decision Box */
+.decision-box { border-left: 4px solid var(--critical); background: var(--bg-card); border-radius: var(--radius); padding: 20px; margin-bottom: 18px; }
+.decision-box h3 { font-size: 14px; margin-bottom: 8px; }
+.decision-box p { font-size: 13px; color: var(--text-secondary); margin-bottom: 10px; }
+.decision-box ul { padding-left: 18px; font-size: 13px; color: var(--text-secondary); }
+.decision-box li { margin-bottom: 5px; }
+
+/* Table */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); font-weight: 500; padding: 10px 12px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg-card); }
+td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:hover td { background: var(--bg-hover); }
+.badge { display: inline-block; padding: 3px 9px; border-radius: 16px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.badge-critical { background: var(--critical-bg); color: var(--critical); }
+.badge-high { background: var(--high-bg); color: var(--high); }
+.badge-medium { background: var(--medium-bg); color: var(--medium); }
+.badge-low { background: var(--low-bg); color: var(--low); }
+.badge-todo { background: var(--accent-glow); color: var(--accent); }
+.badge-overdue { background: var(--critical-bg); color: var(--critical); border: 1px solid rgba(239,68,68,0.3); }
+
+.asset-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.asset-chip { font-size: 10px; padding: 2px 7px; border-radius: 4px; background: var(--bg); border: 1px solid var(--border); color: var(--text-secondary); }
+
+/* Charts Grid */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+@media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+/* Detail Panel */
+.detail-panel { position: fixed; top: 0; right: -480px; width: 480px; height: 100vh; background: var(--bg-card); border-left: 1px solid var(--border); padding: 24px; overflow-y: auto; transition: right 0.3s ease; z-index: 1000; }
+.detail-panel.open { right: 0; }
+.detail-panel .close-btn { position: absolute; top: 16px; right: 16px; background: none; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; }
+.detail-panel h3 { font-size: 16px; margin-bottom: 16px; padding-right: 30px; }
+.detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.detail-row .label { color: var(--text-muted); }
+.overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; }
+.overlay.open { display: block; }
+
+/* Student Signal */
+.signal-form { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; margin-bottom: 18px; border-left: 4px solid var(--accent); }
+.signal-form h2 { font-size: 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.signal-form p { font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; }
+.signal-input-row { display: flex; gap: 10px; }
+.signal-input-row input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--text); font-size: 13px; outline: none; }
+.signal-input-row input:focus { border-color: var(--accent); }
+.signal-input-row button { background: var(--accent); color: white; border: none; border-radius: 8px; padding: 10px 18px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.signal-input-row button:hover { background: #5558e6; }
+.signal-list { margin-top: 12px; }
+.signal-item { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-top: 8px; font-size: 12px; }
+.signal-item .signal-meta { color: var(--text-muted); font-size: 11px; margin-top: 4px; }
+
+/* Building Info */
+.building-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; font-size: 13px; }
+.building-grid .field-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 2px; }
+
+/* Loading */
+.loading { text-align: center; padding: 40px; color: var(--text-muted); }
+.loading i { font-size: 24px; animation: spin 1s linear infinite; margin-bottom: 12px; display: block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Footer */
+.footer { text-align: center; color: var(--text-muted); font-size: 11px; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><i class="fa-solid fa-building" style="color:var(--accent)"></i> 100 Trinity Place</h1>
+  <span id="api-status" class="api-badge disconnected">Connecting...</span>
+  <p class="subtitle">Building M833 · 100 Trinity Pl, New York, NY 10006 · Live data from CriticalAsset API</p>
+</div>
+
+<!-- KPIs -->
+<div class="kpi-grid" id="kpi-grid">
+  <div class="loading"><i class="fa-solid fa-spinner"></i>Loading...</div>
+</div>
+
+<!-- Decision Box -->
+<div id="decision-box"></div>
+
+<!-- Student Signal (Bonus) -->
+<div class="signal-form">
+  <h2><i class="fa-solid fa-bolt" style="color:var(--high)"></i> Student Signal</h2>
+  <p>Spotted something? Submit a one-line observation and it'll be linked to the nearest open work order.</p>
+  <div class="signal-input-row">
+    <input type="text" id="signal-input" placeholder="e.g. &quot;Water stain on ceiling near room 302&quot;">
+    <button onclick="submitSignal()">Submit Signal</button>
+  </div>
+  <div class="signal-list" id="signal-list"></div>
+</div>
+
+<!-- Work Orders Table -->
+<div class="card">
+  <h2><i class="fa-solid fa-clipboard-list"></i> Work Orders</h2>
+  <div id="workorders-table"><div class="loading"><i class="fa-solid fa-spinner"></i>Pulling work orders from API...</div></div>
+</div>
+
+<!-- Charts -->
+<div class="grid-2">
+  <div class="card">
+    <h2><i class="fa-solid fa-chart-pie"></i> Assets by System</h2>
+    <div id="chart-assets" style="height:260px"></div>
+  </div>
+  <div class="card">
+    <h2><i class="fa-solid fa-layer-group"></i> Assets by Floor</h2>
+    <div id="chart-floors" style="height:260px"></div>
+  </div>
+</div>
+
+<!-- Building Profile -->
+<div class="card">
+  <h2><i class="fa-solid fa-map-location-dot"></i> Building Profile</h2>
+  <div id="building-info" class="building-grid"></div>
+</div>
+
+<!-- Limitations -->
+<div class="card">
+  <h2><i class="fa-solid fa-triangle-exclamation" style="color:var(--high)"></i> Limitations & Safety Statement</h2>
+  <ul style="font-size:13px;color:var(--text-secondary);padding-left:18px;">
+    <li>This is a <strong>prototype only</strong> — not production-ready or safety-certified.</li>
+    <li>Data is from a staging environment. Real deployment requires security review.</li>
+    <li>Student signals are stored client-side only (demo). Production would require moderation + database.</li>
+    <li>AI used: Amazon Quick for code generation and dashboard design.</li>
+    <li>Before real-world use: security audit, proper RBAC, data validation, pen testing, and city stakeholder review required.</li>
+  </ul>
+</div>
+
+<div class="footer">
+  Challenge 01 · The City Hacks The State · NYC Tech Week 2026 · Powered by CriticalAsset API + Amazon Quick
+</div>
+
+<!-- Detail Panel -->
+<div class="overlay" id="overlay" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detail-panel">
+  <button class="close-btn" onclick="closeDetail()"><i class="fa-solid fa-xmark"></i></button>
+  <div id="detail-content"></div>
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────
+let workOrders = [];
+let assets = [];
+let locations = null;
+let signals = JSON.parse(localStorage.getItem('studentSignals') || '[]');
+
+// ─── Data Fetching (calls OUR backend, not CriticalAsset directly) ───
+async function fetchData() {
+  try {
+    // Parallel fetch from our backend proxy
+    const [woRes, assetRes, locRes, healthRes] = await Promise.all([
+      fetch('/api/workorders'),
+      fetch('/api/assets'),
+      fetch('/api/locations'),
+      fetch('/api/health')
+    ]);
+
+    const woData = await woRes.json();
+    const assetData = await assetRes.json();
+    const locData = await locRes.json();
+    const healthData = await healthRes.json();
+
+    // Update connection status
+    const badge = document.getElementById('api-status');
+    if (healthData.status === 'connected') {
+      badge.className = 'api-badge connected';
+      badge.textContent = 'API Connected';
+    } else {
+      badge.className = 'api-badge disconnected';
+      badge.textContent = 'Disconnected';
+    }
+
+    // Parse data
+    workOrders = woData?.data?.workOrders?.nodes || [];
+    assets = assetData?.data?.assets?.assets || [];
+    locations = locData?.data?.locationsTree || [];
+
+    renderDashboard();
+  } catch (err) {
+    console.error('Fetch error:', err);
+    document.getElementById('api-status').className = 'api-badge disconnected';
+    document.getElementById('api-status').textContent = 'Connection Error';
+  }
+}
+
+// ─── Render Dashboard ────────────────────────────────────────────────
+function renderDashboard() {
+  renderKPIs();
+  renderDecisionBox();
+  renderTable();
+  renderCharts();
+  renderBuildingInfo();
+  renderSignals();
+}
+
+function renderKPIs() {
+  const total = workOrders.length;
+  const critical = workOrders.filter(w => w.severity === 'CRITICAL').length;
+  const high = workOrders.filter(w => w.severity === 'HIGH').length;
+  const overdue = workOrders.filter(w => w.dueDate && new Date(w.dueDate) < new Date()).length;
+
+  document.getElementById('kpi-grid').innerHTML = `
+    <div class="kpi"><div class="label">Open Work Orders</div><div class="value">${total}</div><div class="sub">All "To Do" stage</div></div>
+    <div class="kpi critical"><div class="label">Critical</div><div class="value">${critical}</div><div class="sub">Fire & Life Safety</div></div>
+    <div class="kpi high"><div class="label">High Priority</div><div class="value">${high}</div><div class="sub">HVAC — Steam System</div></div>
+    <div class="kpi success"><div class="label">Total Assets</div><div class="value">${assets.length}</div><div class="sub">7 floors · 10,675 sqft</div></div>
+    <div class="kpi ${overdue > 0 ? 'critical' : 'medium'}"><div class="label">Overdue</div><div class="value">${overdue}</div><div class="sub">${overdue > 0 ? 'Needs immediate action' : 'All on track'}</div></div>
+  `;
+}
+
+function renderDecisionBox() {
+  const overdue = workOrders.filter(w => w.dueDate && new Date(w.dueDate) < new Date());
+  const upcoming = workOrders.filter(w => w.dueDate && new Date(w.dueDate) >= new Date())
+    .sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+  let items = '';
+  let priority = 1;
+  overdue.forEach(wo => {
+    items += `<li><strong>Priority ${priority++}:</strong> ${wo.title} — <span style="color:var(--critical)">OVERDUE (due ${formatDate(wo.dueDate)})</span></li>`;
+  });
+  upcoming.forEach(wo => {
+    items += `<li><strong>Priority ${priority++}:</strong> ${wo.title} — due ${formatDate(wo.dueDate)}</li>`;
+  });
+
+  document.getElementById('decision-box').innerHTML = `
+    <div class="decision-box">
+      <h3>🚨 Monday Morning Actions</h3>
+      <p>Based on live work order data — here's what needs attention first:</p>
+      <ul>${items}</ul>
+    </div>
+  `;
+}
+
+function renderTable() {
+  if (workOrders.length === 0) {
+    document.getElementById('workorders-table').innerHTML = '<p style="color:var(--text-muted)">No work orders found.</p>';
+    return;
+  }
+
+  let rows = workOrders.map((wo, i) => {
+    const severityClass = (wo.severity || '').toLowerCase();
+    const isOverdue = wo.dueDate && new Date(wo.dueDate) < new Date();
+    const assetChips = (wo.workOrderAssets || []).map(a => 
+      `<span class="asset-chip">${a.asset?.name || 'Unknown'}</span>`
+    ).join('');
+
+    return `<tr onclick="openDetail(${i})" style="cursor:pointer">
+      <td><strong>${wo.title}</strong><br><span style="font-size:11px;color:var(--text-muted)">${(wo.description || '').substring(0, 80)}...</span></td>
+      <td><span class="badge badge-${severityClass}">${wo.severity || 'N/A'}</span></td>
+      <td>${wo.workOrderServiceCategory || '—'}</td>
+      <td>${wo.workOrderType || '—'}</td>
+      <td style="${isOverdue ? 'color:var(--critical);font-weight:600' : ''}">${formatDate(wo.dueDate)}${isOverdue ? ' ⚠️' : ''}</td>
+      <td><span class="badge badge-todo">${wo.stage || 'To Do'}</span></td>
+      <td><div class="asset-chips">${assetChips || '—'}</div></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('workorders-table').innerHTML = `
+    <table>
+      <thead><tr><th>Title</th><th>Severity</th><th>Category</th><th>Type</th><th>Due</th><th>Stage</th><th>Linked Assets</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function renderCharts() {
+  // Group assets by category
+  const catCounts = {};
+  assets.forEach(a => {
+    const cat = a.category || 'Uncategorized';
+    catCounts[cat] = (catCounts[cat] || 0) + 1;
+  });
+
+  Highcharts.setOptions({
+    chart: { backgroundColor: 'transparent', style: { fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif' } },
+    credits: { enabled: false }
+  });
+
+  Highcharts.chart('chart-assets', {
+    chart: { type: 'pie' },
+    title: { text: null },
+    plotOptions: { pie: { innerSize: '55%', borderWidth: 0, dataLabels: { enabled: true, format: '{point.name}: {point.y}', style: { color: '#9ba3b5', textOutline: 'none', fontSize: '11px' } } } },
+    colors: ['#6366f1','#10b981','#f59e0b','#ef4444','#3b82f6','#8b5cf6','#ec4899'],
+    series: [{ name: 'Assets', data: Object.entries(catCounts).map(([name, y]) => ({ name, y })) }]
+  });
+
+  // Floor distribution from locations
+  const floorData = [];
+  if (Array.isArray(locations)) {
+    const site = locations[0];
+    if (site?.sublocation?.[0]?.sublocation) {
+      site.sublocation[0].sublocation.forEach(floor => {
+        const assetCount = floor.sublocation ? floor.sublocation.length : 0;
+        floorData.push({ name: floor.locationName, y: assetCount || 1 });
+      });
+    }
+  }
+
+  if (floorData.length > 0) {
+    Highcharts.chart('chart-floors', {
+      chart: { type: 'bar' },
+      title: { text: null },
+      xAxis: { categories: floorData.map(f => f.name), labels: { style: { color: '#9ba3b5', fontSize: '11px' } }, lineWidth: 0 },
+      yAxis: { title: { text: null }, gridLineColor: '#2a2e3f', labels: { style: { color: '#6b7280' } } },
+      legend: { enabled: false },
+      plotOptions: { bar: { borderRadius: 4, borderWidth: 0, color: '#6366f1' } },
+      series: [{ name: 'Rooms/Zones', data: floorData.map(f => f.y) }]
+    });
+  }
+}
+
+function renderBuildingInfo() {
+  let info = {};
+  if (Array.isArray(locations) && locations.length > 0) {
+    const site = locations[0];
+    const building = site.sublocation?.[0];
+    info = {
+      address: site.address || '100 Trinity Pl, New York, NY 10006',
+      code: building?.locationName || 'M833',
+      type: building?.metadata?.buildingType || 'Building',
+      floors: building?.metadata?.floors || 7,
+      sqft: building?.metadata?.squareFootage?.toLocaleString() || '10,675',
+      coords: site.coordinates?.replace('(','').replace(')','') || '40.7093, -74.0124',
+      assets: assets.length || 100
+    };
+  }
+
+  document.getElementById('building-info').innerHTML = `
+    <div><div class="field-label">Address</div>${info.address || '—'}</div>
+    <div><div class="field-label">Building Code</div>${info.code || '—'}</div>
+    <div><div class="field-label">Type</div>${info.type || '—'}</div>
+    <div><div class="field-label">Total Floors</div>${info.floors || '—'}</div>
+    <div><div class="field-label">Square Footage</div>${info.sqft || '—'} sqft</div>
+    <div><div class="field-label">Coordinates</div>${info.coords || '—'}</div>
+    <div><div class="field-label">Total Assets</div>${info.assets || '—'}</div>
+    <div><div class="field-label">Data Source</div>CriticalAsset GraphQL API</div>
+  `;
+}
+
+// ─── Detail Panel ────────────────────────────────────────────────────
+function openDetail(index) {
+  const wo = workOrders[index];
+  const assets = (wo.workOrderAssets || []).map(a => a.asset);
+
+  let assetDetails = assets.map(a => `
+    <div class="detail-row"><span class="label">Asset</span><span>${a?.name || 'Unknown'}</span></div>
+    <div class="detail-row"><span class="label">Status</span><span>${a?.status || '—'}</span></div>
+    <div class="detail-row"><span class="label">Category</span><span>${a?.category || '—'}</span></div>
+  `).join('');
+
+  document.getElementById('detail-content').innerHTML = `
+    <h3>${wo.title}</h3>
+    <div class="detail-row"><span class="label">Severity</span><span class="badge badge-${(wo.severity||'').toLowerCase()}">${wo.severity}</span></div>
+    <div class="detail-row"><span class="label">Stage</span><span>${wo.stage || 'To Do'}</span></div>
+    <div class="detail-row"><span class="label">Category</span><span>${wo.workOrderServiceCategory || '—'}</span></div>
+    <div class="detail-row"><span class="label">Type</span><span>${wo.workOrderType || '—'}</span></div>
+    <div class="detail-row"><span class="label">Due Date</span><span>${formatDate(wo.dueDate)}</span></div>
+    <div class="detail-row"><span class="label">Created</span><span>${formatDate(wo.createdAt)}</span></div>
+    <div class="detail-row"><span class="label">Location</span><span>${wo.location?.locationName || '—'}</span></div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:16px 0">
+    <h4 style="font-size:13px;margin-bottom:12px;color:var(--accent)">Linked Assets</h4>
+    ${assetDetails || '<p style="color:var(--text-muted);font-size:13px">No assets linked</p>'}
+    <hr style="border:none;border-top:1px solid var(--border);margin:16px 0">
+    <h4 style="font-size:13px;margin-bottom:8px">Description</h4>
+    <p style="font-size:13px;color:var(--text-secondary)">${wo.description || 'No description available.'}</p>
+  `;
+
+  document.getElementById('detail-panel').classList.add('open');
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+}
+
+// ─── Student Signal (Bonus) ──────────────────────────────────────────
+function submitSignal() {
+  const input = document.getElementById('signal-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  // Find nearest work order (simplified: attach to first open/overdue)
+  const target = workOrders.find(w => w.dueDate && new Date(w.dueDate) < new Date()) || workOrders[0];
+
+  const signal = {
+    id: Date.now(),
+    text,
+    timestamp: new Date().toISOString(),
+    linkedWorkOrder: target?.title || 'Unlinked',
+    linkedWorkOrderId: target?.id || null
+  };
+
+  signals.unshift(signal);
+  localStorage.setItem('studentSignals', JSON.stringify(signals));
+  input.value = '';
+  renderSignals();
+}
+
+function renderSignals() {
+  const list = document.getElementById('signal-list');
+  if (signals.length === 0) {
+    list.innerHTML = '';
+    return;
+  }
+  list.innerHTML = signals.slice(0, 5).map(s => `
+    <div class="signal-item">
+      "${s.text}"
+      <div class="signal-meta">
+        <i class="fa-solid fa-link" style="font-size:10px"></i> Linked to: ${s.linkedWorkOrder} · ${new Date(s.timestamp).toLocaleString()}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────
+function formatDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// ─── Init ────────────────────────────────────────────────────────────
+renderSignals();
+fetchData();
+</script>
+</body>
+</html>
